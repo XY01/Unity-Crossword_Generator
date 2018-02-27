@@ -52,17 +52,16 @@ public class Crossword : MonoBehaviour
     CrosswordSpace[,] _CrosswordSpaceGrid;
 
     List<WordQuestionPair> _WordQuestionPairs = new List<WordQuestionPair>();
+    List<WordQuestionPair> _PlacedWords = new List<WordQuestionPair>();
 
     int _WordsPlaced = 0;
 
-    float _RoutineWaitTime = .03f;
+    public float _RoutineWaitTime = .01f;
 
     // Use this for initialization
     void Start ()
     {
         PopualteGrid();
-        CreateDebugList();
-        CreateDebugList();
         CreateDebugList();
         // PopulateWords();
 
@@ -90,6 +89,7 @@ public class Crossword : MonoBehaviour
         }
     }
 
+    /*
     void PopulateWords()
     {
         for (int i = 0; i < _WordQuestionPairs.Count; i++)
@@ -97,10 +97,13 @@ public class Crossword : MonoBehaviour
             SearchForPlacement(_WordQuestionPairs[i]);
         }
     }
+    */
 
     IEnumerator PopulateWordsRoutine()
     {
-        for (int i = 0; i < _WordQuestionPairs.Count; i++)
+        TryPlaceWordAcross(_WordQuestionPairs[0], (_GridAxisCount / 2) - _WordQuestionPairs[0]._Word.Length, (_GridAxisCount / 2));
+
+        for (int i = 1; i < _WordQuestionPairs.Count; i++)
         {
             yield return StartCoroutine(SearchForPlacementRoutine(_WordQuestionPairs[i]));
             yield return new WaitForSeconds(_RoutineWaitTime);
@@ -109,253 +112,282 @@ public class Crossword : MonoBehaviour
 
     IEnumerator SearchForPlacementRoutine(WordQuestionPair word)
     {
-        bool wordPlaced = false;
+        bool wordPlaced = false;        
+
         CrosswordSpace currentSpace = _CrosswordSpaceGrid[0,0];
 
-        // Search within the space that can fit the word
-        for (int y = 0; y < _GridAxisCount; y++)
+        //Search along previouis words
+        for (int i = 0; i < _PlacedWords.Count; i++)
         {
-            for(int x = 0; x < _GridAxisCount; x++)
+            WordQuestionPair placedWord = _PlacedWords[i];
+            for (int j = 0; j < placedWord._Word.Length; j++)
             {
-                // Highlight current space we are searching
-                currentSpace = _CrosswordSpaceGrid[x, y];
-                currentSpace.Highlight(true);
-
-                // If there are some words placed already...
-                if (_WordsPlaced > 0)
+                if(placedWord._Alignment == Alignment.Across)
                 {
-                  
-                    // First search for all spaces with the same first letter
-                    if (currentSpace._Type == CrosswordSpace.Type.Letter &&
-                        currentSpace._Letter == word._Word[0])
-                    {
-                        print("Matched first letter");
-                        wordPlaced = TryPlaceWordAt(word, x, y);
-                    }
+                    // Search for placements downward
+                    currentSpace = _CrosswordSpaceGrid[placedWord._XPos + j, placedWord._YPos];
+                    currentSpace.Highlight(true);
+
+                    wordPlaced = TryPlaceWordDown(word, placedWord._XPos + j, placedWord._YPos);
+
+                    yield return new WaitForSeconds(_RoutineWaitTime);
+                    currentSpace.Highlight(false);
+                }
+                else
+                {
+                    // Search for placements across
+                    currentSpace = _CrosswordSpaceGrid[placedWord._XPos, placedWord._YPos + j];
+                    currentSpace.Highlight(true);
+
+                    wordPlaced = TryPlaceWordDown(word, placedWord._XPos, placedWord._YPos + j);
+
+                    yield return new WaitForSeconds(_RoutineWaitTime);
+                    currentSpace.Highlight(false);
                 }
 
-                yield return new WaitForSeconds(_RoutineWaitTime);
-
-                // If the word hasn't been placed, then search for an unoccupied space
-                if (!wordPlaced && currentSpace._Type == CrosswordSpace.Type.Unoccupied)
-                {
-                   wordPlaced = TryPlaceWordAt(word, x, y);
-                }
-
-                yield return new WaitForSeconds(_RoutineWaitTime);
-
-                currentSpace.Highlight(false);
-                // If the word is placed then return and stop searching
                 if (wordPlaced) break;
             }
 
-            currentSpace.Highlight(false);
-
-            // If the word is placed then return and stop searching
-            if (wordPlaced) break;            
+            if (wordPlaced) break;
         }
-    }
 
-    // Searches for a grid space in which a word can start
-    bool SearchForPlacement(WordQuestionPair word)
-    {
-        bool wordPlaced = false;
-
-        int maxXPos = _GridAxisCount - word._Word.Length;
-        int maxYPos = maxXPos;
-
-
-        // Search within the space that can fit the word
-        for (int x = 0; x < _GridAxisCount; x++)
+        if (!wordPlaced)
         {
+            // Search within the space that can fit the word
             for (int y = 0; y < _GridAxisCount; y++)
             {
-                // First search for all spaces with the same first letter
-                if (_CrosswordSpaceGrid[x, y]._Type == CrosswordSpace.Type.Letter && 
-                    _CrosswordSpaceGrid[x, y]._Letter == word._Word[0])
-                {                 
-                    wordPlaced = TryPlaceWordAt(word, x, y);
-                }                
-
-                // If the word hasn't been placed, then search for an unoccupied space
-                if (!wordPlaced && _CrosswordSpaceGrid[x, y]._Type == CrosswordSpace.Type.Unoccupied)
+                for (int x = 0; x < _GridAxisCount; x++)
                 {
-                    wordPlaced = TryPlaceWordAt(word, x, y);
+                    // Highlight current space we are searching
+                    currentSpace = _CrosswordSpaceGrid[x, y];
+                    currentSpace.Highlight(true);
+
+                    wordPlaced = TryPlaceWordAcross(word, x, y);
+                    if (!wordPlaced) wordPlaced = TryPlaceWordDown(word, x, y);
+
+                    yield return new WaitForSeconds(_RoutineWaitTime);
+                    currentSpace.Highlight(false);
+
+                    // If the word is placed then return and stop searching
+                    if (wordPlaced) break;
                 }
+
+                currentSpace.Highlight(false);
 
                 // If the word is placed then return and stop searching
-                if(wordPlaced)
-                {
-                    return wordPlaced;
-                }
+                if (wordPlaced) break;
             }
         }
-
-        return wordPlaced;
     }
-
-    // Trys to place a word as a specific position by searching the grid spaces to see if they are empty
-    // or contain a matching letter
-    bool TryPlaceWordAt(WordQuestionPair word, int xPos, int yPos, WordQuestionPair existingWord = null)
+    
+    // Trys to place a word as a specific position by searching the adjascent grid spaces
+    bool TryPlaceWordAcross(WordQuestionPair word, int xPos, int yPos)
     {
-        Debug.Log("Trying to place word: " + word._Word + " at: " + xPos + " - " + yPos);
+        Debug.Log("Trying to place ACROSS: " + word._Word + " at: " + xPos + " - " + yPos);
 
         int letterIndex = 0;
         CrosswordSpace currentSpace;
 
+        CrosswordSpace aboveSpace;
+        CrosswordSpace belowSpace;
+        CrosswordSpace rightSpace;
 
-        CrosswordSpace spaceAbove;
-        CrosswordSpace spaceLeft;
-        CrosswordSpace spaceRight;
+        WordQuestionPair existingWord = null;
 
+        currentSpace = _CrosswordSpaceGrid[xPos, yPos];
 
-        
-        if (existingWord == null ||
-            existingWord != null && existingWord._Alignment == Alignment.Down)
+        if (_PlacedWords.Count > 0)
         {
-            print("Searching across");
-            // Search across
-            if (xPos + word._Word.Length <= _GridAxisCount)
+            if (currentSpace._AcrossWord != null) return false;
+            if (currentSpace._DownWord != null) existingWord = currentSpace._DownWord;
+
+            if (existingWord != null && currentSpace._Letter != word._Word[letterIndex]) return false;
+        }
+
+        // Word too long from this position - FALSE
+        if (xPos + word._Word.Length >= _GridAxisCount) return false;
+
+        // On a word that is across - FALSE
+        if (existingWord != null && existingWord._Alignment == Alignment.Across) return false;
+
+        // Not edge column of grid and the space to the LEFT has a letter - FALSE
+        if(xPos > 0 && _CrosswordSpaceGrid[xPos - 1, yPos]._Type == CrosswordSpace.Type.Letter) return false;
+        
+        // Not edge row of grid and space ABOVE has an across word - FALSE
+        if (yPos > 0 && _CrosswordSpaceGrid[xPos, yPos - 1]._AcrossWord != null) return false;
+
+        // Not edge row of grid and the space BELOW has an across word - FALSE
+        if (yPos < _GridAxisCount && _CrosswordSpaceGrid[xPos, yPos + 1]._AcrossWord != null) return false;
+        
+        print("Passed initial conditions");
+
+        letterIndex++;
+
+        for (int x = xPos + 1; x < xPos + word._Word.Length; x++)
+        {
+            currentSpace = _CrosswordSpaceGrid[x, yPos];
+
+            // if the current space is occupied and letter doesn't match
+            // or if current space is blocked, break
+            if (currentSpace._Type == CrosswordSpace.Type.Letter && currentSpace._Letter != word._Word[letterIndex] ||
+                currentSpace._Type == CrosswordSpace.Type.Blocked)
             {
-                for (int x = xPos; x < xPos + word._Word.Length; x++)
+                print("Failed on current space blocked or letter");
+                return false;
+            }
+
+            // Test space ABOVE
+            if (yPos > 0)
+            {
+                aboveSpace = _CrosswordSpaceGrid[x, yPos - 1];
+                if (aboveSpace._Type == CrosswordSpace.Type.Letter && aboveSpace._AcrossWord != null)
                 {
-                    currentSpace = _CrosswordSpaceGrid[x, yPos];
-
-                    // if the current space is occupied and letter doesn't match
-                    // or if current space is blocked, break
-                    if (currentSpace._Type == CrosswordSpace.Type.Letter && currentSpace._Letter != word._Word[letterIndex] ||
-                        currentSpace._Type == CrosswordSpace.Type.Blocked)
-                    {
-                        print("Failed on current space blocked or letter");
-                        break;
-                    }
-
-                    // test space above
-                    if (yPos > 0 && letterIndex > 0)
-                    {
-                        spaceAbove = _CrosswordSpaceGrid[x, yPos - 1];
-                        if (spaceAbove._Type == CrosswordSpace.Type.Letter && spaceAbove._AcrossWord != null)
-                        {
-                            print("Failed on above");
-                            break;
-                        }
-                    }
-
-                    // test space left
-                    if (xPos > 0)
-                    {
-                        spaceLeft = _CrosswordSpaceGrid[xPos - 1, yPos];
-                        if (spaceLeft._Type == CrosswordSpace.Type.Letter)
-                        {
-                            print("Failed on left");
-                            break;
-                        }
-                    }
-
-
-                    // test space right
-                    if (x < _GridAxisCount - 1)
-                    {
-                        spaceRight = _CrosswordSpaceGrid[x+1, yPos];
-                        if (spaceRight._Type == CrosswordSpace.Type.Letter)
-                        {
-                            print("Failed on right");
-                            break;
-                        }
-                    }
-
-
-                    // if we are on the last letter then word can be placed
-                    if (letterIndex == word._Word.Length - 1)
-                    {
-                        PlaceWord(word, xPos, yPos, Alignment.Across);
-                        return true;
-                    }
-
-                    letterIndex++;
+                    print("Failed on above");
+                    return false;
                 }
             }
-        }
-        
-        
-        // Reset letter index
-        letterIndex = 0;
 
-        print("Searching down");
-
-        if (existingWord == null ||
-          existingWord != null && existingWord._Alignment == Alignment.Across)
-        {
-            if (yPos + word._Word.Length <= _GridAxisCount)
+            // Test space BELOW
+            if (yPos < _GridAxisCount-1)
             {
-                // Search down
-                for (int y = yPos; y < yPos + word._Word.Length; y++)
+                belowSpace = _CrosswordSpaceGrid[x, yPos + 1];
+                if (belowSpace._Type == CrosswordSpace.Type.Letter && belowSpace._AcrossWord != null)
                 {
-                    currentSpace = _CrosswordSpaceGrid[xPos, y];
-
-                    // if the current space is occupied and letter doesn't match
-                    // or if current space is blocked, break
-                    if (currentSpace._Type == CrosswordSpace.Type.Letter && currentSpace._Letter != word._Word[letterIndex] ||
-                        currentSpace._Type == CrosswordSpace.Type.Blocked)
-                    {
-                        print("Failed on blocked or letter on current");
-                        break;
-                    }
-
-                    if (yPos > 0)
-                    {
-                        // test space above
-                        spaceAbove = _CrosswordSpaceGrid[xPos,yPos - 1];
-                        if (spaceAbove._Type == CrosswordSpace.Type.Letter)
-                        {
-                            print("Failed on space above");
-                            break;
-                        }
-                    }
-
-                    // test space left
-                    // If not in the first column an
-                    
-                    if (xPos > 0 && letterIndex > 0 ||
-                        xPos > 0 && existingWord == null)
-                    {
-                        spaceLeft = _CrosswordSpaceGrid[xPos - 1, y];
-                        if (spaceLeft._Type == CrosswordSpace.Type.Letter)
-                        {
-                            print("Failed on space left");
-                            break;
-                        }
-                    }
-
-                    // test space right
-                    if (xPos < _GridAxisCount - 1 && letterIndex > 0)
-                    {
-                        spaceRight = _CrosswordSpaceGrid[xPos + 1, y];
-                        if (spaceRight._Type == CrosswordSpace.Type.Letter)
-                        {
-                            print("Failed on space right");
-                            break;
-                        }
-                    }
-
-
-                    // if we are on the last letter then word can be placed
-                    if (letterIndex == word._Word.Length - 1)
-                    {
-                        PlaceWord(word, xPos, yPos, Alignment.Down);
-                        return true;
-                    }
-
-                    letterIndex++;
+                    print("Failed on below");
+                    return false;
                 }
             }
-        }
-        
-        
+
+            // if we are on the last letter then word can be placed
+            if (letterIndex == word._Word.Length - 1)
+            {
+                // Test RIGHT space to make sure there are no letters
+                if(xPos + word._Word.Length < _GridAxisCount)
+                {
+                    rightSpace = _CrosswordSpaceGrid[x + 1, yPos];
+                    if (rightSpace._Type == CrosswordSpace.Type.Letter)
+                    {
+                        print("Failed on end clearence");
+                        return false;
+                    }
+                }
+
+                PlaceWord(word, xPos, yPos, Alignment.Across);
+                return true;
+            }
+
+            letterIndex++;
+        }                
 
         return false;
     }
 
+    // Trys to place a word as a specific position by searching the adjascent grid spaces
+    bool TryPlaceWordDown(WordQuestionPair word, int xPos, int yPos)
+    {
+        Debug.Log("Trying to place DOWN: " + word._Word + " at: " + xPos + " - " + yPos);
+
+        int letterIndex = 0;
+        CrosswordSpace currentSpace;
+        
+        CrosswordSpace belowSpace;
+        CrosswordSpace leftSpace;
+        CrosswordSpace rightSpace;
+
+        WordQuestionPair existingWord = null;
+
+
+        currentSpace = _CrosswordSpaceGrid[xPos, yPos];
+
+        if (_PlacedWords.Count > 0)
+        {
+            if (currentSpace._AcrossWord != null) existingWord = currentSpace._AcrossWord;
+            if (currentSpace._DownWord != null) return false;
+            
+            if (currentSpace._Letter != word._Word[letterIndex]) return false;
+        }
+
+        // Word too long from this position - FALSE
+        if (yPos + word._Word.Length >= _GridAxisCount) return false;
+
+        // On a word that is down - FALSE
+        if (existingWord != null && existingWord._Alignment == Alignment.Down) return false;
+
+        // Not edge row of grid and the space to the ABOVE has a letter - FALSE
+        if (yPos > 0 && _CrosswordSpaceGrid[xPos, yPos - 1]._Type == CrosswordSpace.Type.Letter) return false;
+
+        // Not edge col of grid and space LEFT has an down word - FALSE
+        if (xPos > 0 && _CrosswordSpaceGrid[xPos - 1, yPos]._DownWord != null) return false;
+
+        // Not edge col of grid and the space BELOW has an down word - FALSE
+        if (xPos < _GridAxisCount - 1 && _CrosswordSpaceGrid[xPos + 1, yPos]._DownWord != null) return false;
+
+        print("Passed initial conditions");
+
+        letterIndex++;
+
+        for (int y = yPos + 1; y < yPos + word._Word.Length; y++)
+        {
+            currentSpace = _CrosswordSpaceGrid[xPos, y];
+
+            // if the current space is occupied and letter doesn't match
+            // or if current space is blocked, break
+            if (currentSpace._Type == CrosswordSpace.Type.Letter && currentSpace._Letter != word._Word[letterIndex] ||
+                currentSpace._Type == CrosswordSpace.Type.Blocked)
+            {
+                print("Failed on current space blocked or letter");
+                return false;
+            }
+
+            // Test space LEFT
+            if (xPos > 0)
+            {
+                leftSpace = _CrosswordSpaceGrid[xPos-1, y];
+                if (leftSpace._Type == CrosswordSpace.Type.Letter && leftSpace._DownWord != null)
+                {
+                    print("Failed on left");
+                    return false;
+                }
+            }
+
+            // Test space RIGHT
+            if (xPos < _GridAxisCount-1)
+            {
+                rightSpace = _CrosswordSpaceGrid[xPos+1, y];
+                if (rightSpace._Type == CrosswordSpace.Type.Letter && rightSpace._DownWord != null)
+                {
+                    print("Failed on right");
+                    return false;
+                }
+            }
+
+            // if we are on the last letter then word can be placed
+            if (letterIndex == word._Word.Length - 1)
+            {
+                Debug.Log("Testing clearance");
+
+                // Test BELOW space to make sure there are no letters
+                if (yPos + word._Word.Length < _GridAxisCount)
+                {
+                    belowSpace = _CrosswordSpaceGrid[xPos, y + 1];
+                    if (belowSpace._Type == CrosswordSpace.Type.Letter)
+                    {
+                        Debug.Log("Failed on end clearence");
+                        return false;
+                    }
+                }
+
+                PlaceWord(word, xPos, yPos, Alignment.Down);
+                return true;
+            }
+
+            letterIndex++;
+        }
+
+        print("Failed at end: " + letterIndex);
+        return false;
+    }
+    
     // Places a word at a specific position and assigns the grid space references
     void PlaceWord(WordQuestionPair word, int posX, int posY, Alignment align)
     {
@@ -363,8 +395,11 @@ public class Crossword : MonoBehaviour
 
         word.Place(posX, posY, align);
 
+        _PlacedWords.Add(word);
+
         _WordsPlaced++;
-        print("Words placed: " + _WordsPlaced);
+
+        print("Word placed: " + _WordsPlaced);
 
         if (align == Alignment.Across)
         {
@@ -402,9 +437,9 @@ public class Crossword : MonoBehaviour
     {
         _WordQuestionPairs.Add(new WordQuestionPair("TESTING", "lorem ipsum blah blah lol"));
         _WordQuestionPairs.Add(new WordQuestionPair("TOOT", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("TOOT", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("TOOT", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("TOOT", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("TORT", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("TRUE", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("TOTALLY", "lorem ipsum blah blah lol"));
         _WordQuestionPairs.Add(new WordQuestionPair("TRAFFIC", "lorem ipsum blah blah lol"));
         _WordQuestionPairs.Add(new WordQuestionPair("TECH", "lorem ipsum blah blah lol"));
         _WordQuestionPairs.Add(new WordQuestionPair("TOTES", "lorem ipsum blah blah lol"));     

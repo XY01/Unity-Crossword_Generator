@@ -34,6 +34,7 @@ public class CrosswordSpace : MonoBehaviour
         _Rect = GetComponent<RectTransform>();
         _Rect.sizeDelta = new Vector2(size, size);
         _Type = Type.Unoccupied;
+        _Letter = ')';
     }
 
     public void PlaceWord(WordQuestionPair word, int letterIndex, Crossword.Alignment alignment)
