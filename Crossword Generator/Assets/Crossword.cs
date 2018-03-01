@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using System.Linq;
 
 /// <summary>
 /// Reference
@@ -65,6 +66,8 @@ public class Crossword : MonoBehaviour
         CreateDebugList();
         // PopulateWords();
 
+        _WordQuestionPairs = _WordQuestionPairs.OrderByDescending(n => n._Word.Length).ToList();
+
         StartCoroutine(PopulateWordsRoutine());
     }
 
@@ -101,12 +104,21 @@ public class Crossword : MonoBehaviour
 
     IEnumerator PopulateWordsRoutine()
     {
-        TryPlaceWordAcross(_WordQuestionPairs[0], (_GridAxisCount / 2) - _WordQuestionPairs[0]._Word.Length, (_GridAxisCount / 2));
+        TryPlaceWordDown(_WordQuestionPairs[0], (_GridAxisCount / 2) - (_WordQuestionPairs[0]._Word.Length/2), (_GridAxisCount / 2));
 
         for (int i = 1; i < _WordQuestionPairs.Count; i++)
         {
             yield return StartCoroutine(SearchForPlacementRoutine(_WordQuestionPairs[i]));
             yield return new WaitForSeconds(_RoutineWaitTime);
+        }
+
+        for (int i = 0; i < _GridAxisCount; i++)
+        {
+            for (int j = 0; j < _GridAxisCount; j++)
+            {
+                if (_CrosswordSpaceGrid[i, j]._Type == CrosswordSpace.Type.Unoccupied)
+                    _CrosswordSpaceGrid[i, j].Block();
+            }
         }
     }
 
@@ -116,7 +128,10 @@ public class Crossword : MonoBehaviour
 
         CrosswordSpace currentSpace = _CrosswordSpaceGrid[0,0];
 
-        //Search along previouis words
+        #region Search along previouis words
+
+        //_PlacedWords = _PlacedWords.OrderByDescending(n => n._Word.Length).ToList();
+
         for (int i = 0; i < _PlacedWords.Count; i++)
         {
             WordQuestionPair placedWord = _PlacedWords[i];
@@ -124,7 +139,7 @@ public class Crossword : MonoBehaviour
             {
                 if(placedWord._Alignment == Alignment.Across)
                 {
-                    // Search for placements downward
+                    // Search for placements across
                     currentSpace = _CrosswordSpaceGrid[placedWord._XPos + j, placedWord._YPos];
                     currentSpace.Highlight(true);
 
@@ -135,11 +150,11 @@ public class Crossword : MonoBehaviour
                 }
                 else
                 {
-                    // Search for placements across
+                    // Search for placements down
                     currentSpace = _CrosswordSpaceGrid[placedWord._XPos, placedWord._YPos + j];
                     currentSpace.Highlight(true);
 
-                    wordPlaced = TryPlaceWordDown(word, placedWord._XPos, placedWord._YPos + j);
+                    wordPlaced = TryPlaceWordAcross(word, placedWord._XPos, placedWord._YPos + j);
 
                     yield return new WaitForSeconds(_RoutineWaitTime);
                     currentSpace.Highlight(false);
@@ -151,6 +166,92 @@ public class Crossword : MonoBehaviour
             if (wordPlaced) break;
         }
 
+        #endregion
+
+        /*
+        #region Search left/top edges of previouis words
+
+        //_PlacedWords = _PlacedWords.OrderByDescending(n => n._Word.Length).ToList();
+
+        for (int i = 0; i < _PlacedWords.Count; i++)
+        {
+            WordQuestionPair placedWord = _PlacedWords[i];
+            for (int j = 0; j < placedWord._Word.Length; j++)
+            {
+                if (placedWord._Alignment == Alignment.Across && placedWord._YPos > 0)
+                {
+                    // Search for placements across
+                    currentSpace = _CrosswordSpaceGrid[placedWord._XPos + j, placedWord._YPos-1];
+                    currentSpace.Highlight(true);
+
+                    wordPlaced = TryPlaceWordDown(word, placedWord._XPos + j, placedWord._YPos-1);
+
+                    yield return new WaitForSeconds(_RoutineWaitTime);
+                    currentSpace.Highlight(false);
+                    if (wordPlaced) break;      
+                }
+                else if (placedWord._Alignment == Alignment.Down && placedWord._XPos > 0)
+                {
+                    // Search for placements downward
+                    currentSpace = _CrosswordSpaceGrid[placedWord._XPos - 1, placedWord._YPos + j];
+                    currentSpace.Highlight(true);
+
+                    wordPlaced = TryPlaceWordAcross(word, placedWord._XPos - 1, placedWord._YPos + j);
+
+                    yield return new WaitForSeconds(_RoutineWaitTime);
+                    currentSpace.Highlight(false);
+                }
+
+                if (wordPlaced) break;
+            }
+
+            if (wordPlaced) break;
+        }
+
+        #endregion
+
+        #region Search right/bottom edges of previouis words
+
+        for (int i = 0; i < _PlacedWords.Count; i++)
+        {
+            WordQuestionPair placedWord = _PlacedWords[i];
+            for (int j = 0; j < placedWord._Word.Length; j++)
+            {
+                if (placedWord._Alignment == Alignment.Across && placedWord._YPos < _GridAxisCount - 2)
+                {
+                    // Search for placements across
+                    currentSpace = _CrosswordSpaceGrid[placedWord._XPos + j, placedWord._YPos + 1];
+                    currentSpace.Highlight(true);
+
+                    wordPlaced = TryPlaceWordDown(word, placedWord._XPos + j, placedWord._YPos + 1);
+
+                    yield return new WaitForSeconds(_RoutineWaitTime);
+                    currentSpace.Highlight(false);
+                    if (wordPlaced) break;
+                }
+                else if(placedWord._Alignment == Alignment.Down && placedWord._XPos < _GridAxisCount - 2)
+                {
+                    // Search for placements downward
+                    currentSpace = _CrosswordSpaceGrid[placedWord._XPos + 1, placedWord._YPos + j];
+                    currentSpace.Highlight(true);
+
+                    wordPlaced = TryPlaceWordAcross(word, placedWord._XPos + 1, placedWord._YPos + j);
+
+                    yield return new WaitForSeconds(_RoutineWaitTime);
+                    currentSpace.Highlight(false);
+                }
+
+                if (wordPlaced) break;
+            }
+
+            if (wordPlaced) break;
+        }
+
+        #endregion
+    */
+        int randXOffset = Random.Range(0, _GridAxisCount);
+        int randYOffset = Random.Range(0, _GridAxisCount);
+
         if (!wordPlaced)
         {
             // Search within the space that can fit the word
@@ -158,11 +259,17 @@ public class Crossword : MonoBehaviour
             {
                 for (int x = 0; x < _GridAxisCount; x++)
                 {
+                    int xOffset = x + randXOffset;
+                    if (xOffset >= _GridAxisCount) xOffset -= _GridAxisCount;
+
+                    int yOffset = y + randYOffset;
+                    if (yOffset >= _GridAxisCount) yOffset -= _GridAxisCount;
+
                     // Highlight current space we are searching
-                    currentSpace = _CrosswordSpaceGrid[x, y];
+                    currentSpace = _CrosswordSpaceGrid[xOffset, yOffset];
                     currentSpace.Highlight(true);
 
-                    wordPlaced = TryPlaceWordAcross(word, x, y);
+                    wordPlaced = TryPlaceWordAcross(word, xOffset, yOffset);
                     if (!wordPlaced) wordPlaced = TryPlaceWordDown(word, x, y);
 
                     yield return new WaitForSeconds(_RoutineWaitTime);
@@ -183,7 +290,7 @@ public class Crossword : MonoBehaviour
     // Trys to place a word as a specific position by searching the adjascent grid spaces
     bool TryPlaceWordAcross(WordQuestionPair word, int xPos, int yPos)
     {
-        Debug.Log("Trying to place ACROSS: " + word._Word + " at: " + xPos + " - " + yPos);
+        //Debug.Log("Trying to place ACROSS: " + word._Word + " at: " + xPos + " - " + yPos);
 
         int letterIndex = 0;
         CrosswordSpace currentSpace;
@@ -204,6 +311,9 @@ public class Crossword : MonoBehaviour
             if (existingWord != null && currentSpace._Letter != word._Word[letterIndex]) return false;
         }
 
+        // if on a blocker return
+        if (currentSpace._Type == CrosswordSpace.Type.Blocked) return false; 
+
         // Word too long from this position - FALSE
         if (xPos + word._Word.Length >= _GridAxisCount) return false;
 
@@ -217,9 +327,9 @@ public class Crossword : MonoBehaviour
         if (yPos > 0 && _CrosswordSpaceGrid[xPos, yPos - 1]._AcrossWord != null) return false;
 
         // Not edge row of grid and the space BELOW has an across word - FALSE
-        if (yPos < _GridAxisCount && _CrosswordSpaceGrid[xPos, yPos + 1]._AcrossWord != null) return false;
+        if (yPos < _GridAxisCount - 1 && _CrosswordSpaceGrid[xPos, yPos + 1]._AcrossWord != null) return false;
         
-        print("Passed initial conditions");
+        //print("Passed initial conditions");
 
         letterIndex++;
 
@@ -232,7 +342,7 @@ public class Crossword : MonoBehaviour
             if (currentSpace._Type == CrosswordSpace.Type.Letter && currentSpace._Letter != word._Word[letterIndex] ||
                 currentSpace._Type == CrosswordSpace.Type.Blocked)
             {
-                print("Failed on current space blocked or letter");
+               // print("Failed on current space blocked or letter");
                 return false;
             }
 
@@ -242,7 +352,7 @@ public class Crossword : MonoBehaviour
                 aboveSpace = _CrosswordSpaceGrid[x, yPos - 1];
                 if (aboveSpace._Type == CrosswordSpace.Type.Letter && aboveSpace._AcrossWord != null)
                 {
-                    print("Failed on above");
+                 //   print("Failed on above");
                     return false;
                 }
             }
@@ -253,7 +363,7 @@ public class Crossword : MonoBehaviour
                 belowSpace = _CrosswordSpaceGrid[x, yPos + 1];
                 if (belowSpace._Type == CrosswordSpace.Type.Letter && belowSpace._AcrossWord != null)
                 {
-                    print("Failed on below");
+                  //  print("Failed on below");
                     return false;
                 }
             }
@@ -267,10 +377,11 @@ public class Crossword : MonoBehaviour
                     rightSpace = _CrosswordSpaceGrid[x + 1, yPos];
                     if (rightSpace._Type == CrosswordSpace.Type.Letter)
                     {
-                        print("Failed on end clearence");
+                        //print("Failed on end clearence");
                         return false;
                     }
                 }
+
 
                 PlaceWord(word, xPos, yPos, Alignment.Across);
                 return true;
@@ -285,7 +396,7 @@ public class Crossword : MonoBehaviour
     // Trys to place a word as a specific position by searching the adjascent grid spaces
     bool TryPlaceWordDown(WordQuestionPair word, int xPos, int yPos)
     {
-        Debug.Log("Trying to place DOWN: " + word._Word + " at: " + xPos + " - " + yPos);
+        //Debug.Log("Trying to place DOWN: " + word._Word + " at: " + xPos + " - " + yPos);
 
         int letterIndex = 0;
         CrosswordSpace currentSpace;
@@ -306,6 +417,9 @@ public class Crossword : MonoBehaviour
             
             if (currentSpace._Letter != word._Word[letterIndex]) return false;
         }
+
+        // if on a blocker return
+        if (currentSpace._Type == CrosswordSpace.Type.Blocked) return false;
 
         // Word too long from this position - FALSE
         if (yPos + word._Word.Length >= _GridAxisCount) return false;
@@ -435,28 +549,75 @@ public class Crossword : MonoBehaviour
 
     void CreateDebugList()
     {
-        _WordQuestionPairs.Add(new WordQuestionPair("TESTING", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("TOOT", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("TORT", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("TRUE", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("TOTALLY", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("TRAFFIC", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("TECH", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("TOTES", "lorem ipsum blah blah lol"));     
-        _WordQuestionPairs.Add(new WordQuestionPair("TRAIN", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("GREETINGS", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("FLOAT", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("BALLOON", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("FRENZY", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("LOOPING", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("RAD", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("REALISTIC", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("FAKE", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("CREAM", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("CORDIAL", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("SPLIT", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("CRACK", "lorem ipsum blah blah lol"));
-        _WordQuestionPairs.Add(new WordQuestionPair("TREE", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("PHANTOM", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("EUCALYPT", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("EMU", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("TAYLOR", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("EN", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("PARIS", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("LEAR", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("TRUSTWORTHY", "lorem ipsum blah blah lol"));     
+        _WordQuestionPairs.Add(new WordQuestionPair("CHRISTOPHER", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("TROUT", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("OPTICAL", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("TOP", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("SILVER", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("INSECTS", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("CLEOPATRA", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("TEA", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("BEG", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("PLUS", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("TWICE", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("CUTLERY", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("KID", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("WOBBLY", "lorem ipsum blah blah lol"));
+
+        _WordQuestionPairs.Add(new WordQuestionPair("WOBBLY", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("SUNFLOWER", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("LABRADOR", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("HABIT", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("FRY", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("SCHEDULE", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("BETHLEHEM", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("MORTAR", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("ICE", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("DRYER", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("ALTAR", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("EROS", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("RINGS", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("BRUNETTE", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("MOUSE", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("AGGRESSIVE", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("BLAST", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("NURTURE", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("EXPAND", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("BIKE", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("CAMEMBERT", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("INSERT", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("CRUEL", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("ERASE", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("MENU", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("WHEAT", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("CALCULATOR", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("INEPT", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("CONTRACT", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("EDIT", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("ALIBI", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("GLORY", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("CHASE", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("ASSISTED", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("DROVE", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("STORM", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("HOUR", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("DIRTY", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("BLEACH", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("BOWLS", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("JOKE", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("NEW", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("CRIMINAL", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("CASTLE", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("PUNT", "lorem ipsum blah blah lol"));
+        _WordQuestionPairs.Add(new WordQuestionPair("CARPET", "lorem ipsum blah blah lol"));
     }
 
 }

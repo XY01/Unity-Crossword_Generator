@@ -242,7 +242,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 600, y: 600}
+  m_SizeDelta: {x: 800, y: 800}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &998617595
 MonoBehaviour:
@@ -312,7 +312,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _GridLayout: {fileID: 998617597}
-  _GridAxisCount: 20
+  _GridAxisCount: 30
   _CrosswordSpace: {fileID: 114295327826790686, guid: 1ad179d7c2a5bb949a6d8f76e97c6edc,
     type: 2}
   _RoutineWaitTime: 0
