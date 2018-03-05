@@ -18,8 +18,8 @@ public class WordQuestionPair
     public string _Word;
     public string _Questions;
 
-  
-
+    public bool _Placed = false;
+    
     public WordQuestionPair(string word, string question)
     {
         _Word = word;
@@ -31,6 +31,7 @@ public class WordQuestionPair
         _XPos = xPos;
         _YPos = yPos;
         _Alignment = align;
+        _Placed = true;
 
         Debug.Log(_Word + "  placed at: " + xPos + " - " + yPos + "  alignment: " +  align);
     }
@@ -52,8 +53,11 @@ public class Crossword : MonoBehaviour
 
     CrosswordSpace[,] _CrosswordSpaceGrid;
 
-    List<WordQuestionPair> _WordQuestionPairs = new List<WordQuestionPair>();
+    public List<WordQuestionPair> _WordQuestionPairs = new List<WordQuestionPair>();
+    List<WordQuestionPair> _UnplacedWords = new List<WordQuestionPair>();
     List<WordQuestionPair> _PlacedWords = new List<WordQuestionPair>();
+
+    WordQuestionPair _ActiveWord;
 
     int _WordsPlaced = 0;
 
@@ -65,7 +69,6 @@ public class Crossword : MonoBehaviour
         PopualteGrid();
         CreateDebugList();
         // PopulateWords();
-
         _WordQuestionPairs = _WordQuestionPairs.OrderByDescending(n => n._Word.Length).ToList();
 
         StartCoroutine(PopulateWordsRoutine());
@@ -102,16 +105,63 @@ public class Crossword : MonoBehaviour
     }
     */
 
+    List<WordQuestionPair> FindWordsThatShareLetters(WordQuestionPair word)
+    {
+        List<WordQuestionPair> matches = new List<WordQuestionPair>();
+        for (int i = 0; i < word._Word.Length; i++)
+        {
+            for (int j = 0; j < _UnplacedWords.Count; j++)
+            {
+                if (_UnplacedWords[j]._Word.Contains(word._Word[i]))
+                    if (!matches.Contains(_UnplacedWords[j]))
+                    {
+                        matches.Add(_UnplacedWords[j]);
+                    }
+
+            }
+        }
+
+        return matches;
+    }
+
     IEnumerator PopulateWordsRoutine()
     {
+        // Place initial word
         TryPlaceWordDown(_WordQuestionPairs[0], (_GridAxisCount / 2) - (_WordQuestionPairs[0]._Word.Length/2), (_GridAxisCount / 2));
 
+        int attempts = 0;
+
+        while (attempts < _WordQuestionPairs.Count)
+        {
+            List<WordQuestionPair> matchingWords = FindWordsThatShareLetters(_ActiveWord);
+
+            if (matchingWords.Count != 0)
+            {
+                // try place all matching words
+                for (int i = 0; i < matchingWords.Count; i++)
+                {
+                    yield return StartCoroutine(SearchForPlacementRoutine(matchingWords[i]));
+                    yield return new WaitForSeconds(_RoutineWaitTime);
+                }
+            }
+            else
+            {
+                yield return StartCoroutine(SearchForPlacementRoutine(_UnplacedWords[0]));
+                yield return new WaitForSeconds(_RoutineWaitTime);
+            }
+            attempts++;
+        }
+
+        /*
+        // iterate through all words
         for (int i = 1; i < _WordQuestionPairs.Count; i++)
         {
             yield return StartCoroutine(SearchForPlacementRoutine(_WordQuestionPairs[i]));
             yield return new WaitForSeconds(_RoutineWaitTime);
         }
+        */
 
+        // Block all remaining squares
         for (int i = 0; i < _GridAxisCount; i++)
         {
             for (int j = 0; j < _GridAxisCount; j++)
@@ -510,6 +560,8 @@ public class Crossword : MonoBehaviour
         word.Place(posX, posY, align);
 
         _PlacedWords.Add(word);
+        _UnplacedWords.Remove(word);
+        _ActiveWord = word;
 
         _WordsPlaced++;
 
@@ -618,6 +670,12 @@ public class Crossword : MonoBehaviour
         _WordQuestionPairs.Add(new WordQuestionPair("CASTLE", "lorem ipsum blah blah lol"));
         _WordQuestionPairs.Add(new WordQuestionPair("PUNT", "lorem ipsum blah blah lol"));
         _WordQuestionPairs.Add(new WordQuestionPair("CARPET", "lorem ipsum blah blah lol"));
+
+
+        for (int i = 0; i < _WordQuestionPairs.Count; i++)
+        {
+            _UnplacedWords.Add(_WordQuestionPairs[i]);
+        }
     }
 
 }
